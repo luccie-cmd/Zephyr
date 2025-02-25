@@ -1,0 +1,4 @@
+func main(): int {
+    std::println("Hello, World");
+    return (34+35) as int;
+}
