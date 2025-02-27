@@ -1,4 +1,4 @@
-use crate::{driver::diag::DiagPrinter, syntax::{ast::Ast, lexer::Lexer, parser::Parser}};
+use crate::{driver::diag::DiagPrinter, sema::analyzer::Sema, syntax::{ast::Ast, lexer::Lexer, parser::Parser}};
 
 use super::diag::DiagType;
 
@@ -17,10 +17,11 @@ impl Context{
             self.diagnostic_printer.print_formatted(DiagType::Debug, format!("File data: `{}`", self.file_data));
         }
     }
-    pub fn parse(&self){
+    pub fn run(&self){
         let lexer: Lexer = Lexer::new(self.file_data.clone(), self.diagnostic_printer.clone());
         let mut parser: Parser = Parser::new(lexer, self.diagnostic_printer.clone());
         let ast: Ast = parser.parse_to_ast();
-        ast.print();
+        let sema: Sema = Sema::new(ast, self.diagnostic_printer.clone());
+        sema.run();
     }
 }

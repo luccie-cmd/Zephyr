@@ -9,3 +9,4 @@ cc = "1.2.15"
 [profile.release]
 opt-level = 3
 debug = false
+overflow-checks = false

@@ -30,6 +30,7 @@ fn is_identifier(c: char) -> bool {
 const KEYWRODS: &[(&str, TokenType)] = &[
     ("func", TokenType::Func),
     ("int", TokenType::Int),
+    ("string", TokenType::String),
     ("return", TokenType::Return),
     ("as", TokenType::As),
 ];

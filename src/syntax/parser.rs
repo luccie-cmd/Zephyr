@@ -30,7 +30,7 @@ impl Parser {
     }
     pub fn parse_to_ast(&mut self) -> Ast {
         let mut body: Vec<StatementType> = vec![];
-        while self.current_token.get_type() != TokenType::CloseCurly {
+        while self.current_token.get_type() != TokenType::Eof {
             body.push(self.parse_top_stmt());
         }
         Ast::new(body)

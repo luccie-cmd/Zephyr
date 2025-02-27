@@ -2,3 +2,5 @@
 Cargo.lock
 /script
 /.vscode
+main
+main.cc

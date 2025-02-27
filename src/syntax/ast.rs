@@ -8,22 +8,24 @@ pub struct Ast {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementType {
     Invalid,
-    Decleration(Box<DeclerationType>),
-    Expr(Box<ExprType>),
-    Block(Box<BlockStatement>),
-    Return(Box<ExprType>),
+    Decleration(DeclerationType),
+    Expr(ExprType),
+    Block(BlockStatement),
+    Return(ExprType),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum TypeSpec {
     Invalid,
     Int,
-    Alias,
+    String,
+    // Alias(TypeSpec),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockStatement {
     pub body: Vec<StatementType>,
+    id: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,11 +46,11 @@ pub struct FunctionDeclerationStatement {
 #[repr(u64)]
 pub enum ExprType {
     Invalid,
-    Identifier(Box<Token>),
-    StringLiteral(Box<Token>),
-    NumericLiteral(Box<Token>),
+    Identifier(Token),
+    StringLiteral(Token),
+    NumericLiteral(Token),
     Binary(Box<ExprType>, Token, Box<ExprType>),
-    MemberAccess(Box<ExprType>, Token),
+    MemberAccess(Box<ExprType>, Box<ExprType>),
     Call(Box<ExprType>, Vec<ExprType>),
     Cast(Box<ExprType>, TypeSpec),
 }
@@ -68,10 +70,31 @@ impl FunctionDeclerationStatement {
     pub fn new(name: Token, return_type: TypeSpec, body: StatementType) -> Self {
         Self { name, return_type, body }
     }
+    pub fn name(&self) -> Token {
+        self.name.clone()
+    }
+    pub fn return_type(&self) -> TypeSpec {
+        self.return_type
+    }
+    pub fn body(&self) -> StatementType {
+        self.body.clone()
+    }
+}
+
+static mut BLOCKS: usize = 0;
+
+fn gen_new_id() -> usize {
+    unsafe {
+        BLOCKS+=1;
+        BLOCKS
+    }
 }
 
 impl BlockStatement {
     pub fn new(body: Vec<StatementType>) -> Self {
-        Self { body }
+        Self { body, id: gen_new_id() }
+    }
+    pub fn get_id(&self) -> usize {
+        self.id
     }
 }

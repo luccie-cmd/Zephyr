@@ -13,17 +13,17 @@ impl Parser {
     pub fn parse_primary_expr(&mut self) -> ExprType {
         match self.current_token.get_type() {
             TokenType::Identifier => {
-                let ret: ExprType = ExprType::Identifier(Box::new(self.current_token.clone()));
+                let ret: ExprType = ExprType::Identifier(self.current_token.clone());
                 self.consume();
                 ret
             }
             TokenType::StringLiteral => {
-                let ret: ExprType = ExprType::StringLiteral(Box::new(self.current_token.clone()));
+                let ret: ExprType = ExprType::StringLiteral(self.current_token.clone());
                 self.consume();
                 ret
             }
             TokenType::NumericLiteral => {
-                let ret: ExprType = ExprType::NumericLiteral(Box::new(self.current_token.clone()));
+                let ret: ExprType = ExprType::NumericLiteral(self.current_token.clone());
                 self.consume();
                 ret
             }
@@ -45,8 +45,8 @@ impl Parser {
             match self.current_token.get_type() {
                 TokenType::ColonColon => {
                     self.consume();
-                    let property: Token = self.expect(true, TokenType::Identifier).unwrap();
-                    member = ExprType::MemberAccess(Box::new(member), property);
+                    let property: ExprType = self.parse_expr(0);
+                    member = ExprType::MemberAccess(Box::new(member), Box::new(property));
                 }
                 TokenType::OpenParen => {
                     self.consume();

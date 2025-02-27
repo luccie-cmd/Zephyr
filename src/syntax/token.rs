@@ -27,6 +27,7 @@ pub enum TokenType {
     As,
     __TYPESSTART = 511,
     Int,
+    String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
