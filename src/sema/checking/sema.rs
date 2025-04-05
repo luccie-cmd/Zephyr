@@ -1,5 +1,6 @@
 use crate::{driver::diag::{DiagPrinter, DiagType}, syntax::ast::{Ast, DeclerationType, ExprType, FunctionDeclerationStatement, StatementType, TypeSpec}};
 use std::collections::HashMap;
+use std::process::exit;
 
 pub struct SemaChecker {
     ast: Ast,
@@ -65,6 +66,14 @@ impl SemaChecker {
     pub fn get_scope(&self, name: &str) -> Option<SymbolTable> {
         self.scopes.get(name).cloned()
     }
+    fn get_symbol(&self, name: String) -> SymbolKind {
+        if let Some(sym_table) = self.scopes.get(&name) {
+            sym_table.get_symbol_by_name(self, &name).expect("Expected symbol to be in table")
+        } else {
+            self.diag.print_formatted(DiagType::Ice, "Improper checking of scopes".to_string());
+            exit(1);
+        }
+    }
     fn add_table(&mut self, name: String, table: SymbolTable) {
         self.scopes.insert(name, table);
     }
@@ -103,7 +112,7 @@ impl SemaChecker {
                 self.collect_func_decl(*func.clone());
             }
             StatementType::Block(block) => {
-                let block_scope_name = format!("block_{}", block.get_id());
+                let block_scope_name = format!("__block_{}__", block.get_id());
                 let block_scope: SymbolTable = SymbolTable::new(Some(self.current_scope.clone()));
                 self.add_table(block_scope_name.clone(), block_scope);
                 self.scope_names.push(self.current_scope.clone());
@@ -173,11 +182,33 @@ impl SemaChecker {
         self.validate_stmt(func.body());
     }
     fn validate_expr(&mut self, expr: ExprType) {
-        // match expr {
-            /* _ => */ {
+        match expr {
+            ExprType::Identifier(identifier) => {
+                if !self.contains_name(self.current_scope.clone(), identifier.get_data()) {
+                    self.diag.print_formatted(DiagType::Error, format!("Use of undeclared identifier `{}`", identifier.get_data()));
+                }
+            }
+            ExprType::Call(callee, args) => {
+                // Box<ExprType>, Vec<ExprType>
+                self.validate_expr(*callee);
+                for arg in args {
+                    self.validate_expr(arg);
+                }
+            }
+            ExprType::MemberAccess(member, property) => {
+                self.validate_expr(*member.clone());
+                let ExprType::Identifier(ref member_ident) = *member else { panic!("Improper parsing of memberExpr\n"); };
+                let ExprType::Identifier(ref property_ident) = *property else { panic!("Improper parsing of memberExpr\n"); };
+                let symbol: SymbolKind = self.get_symbol(member_ident.get_data());
+                let SymbolKind::Namespace = symbol else { self.diag.print_formatted(DiagType::Error, format!("Symbol `{}` isn't a structure or a namespace", member_ident.get_data())); exit(1); };
+                if !self.contains_name(member_ident.get_data(), property_ident.get_data()) {
+                    self.diag.print_formatted(DiagType::Error, format!("No property named `{}` found in scope `{}`", property_ident.get_data(), member_ident.get_data()));
+                }
+            }
+            _ => {
                 self.diag.print_formatted(DiagType::Ice, format!("Handle validating expression `{:?}`", expr));
             }
-        // }
+        }
     }
     fn validate_stmt(&mut self, stmt: StatementType) {
         match stmt {

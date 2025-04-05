@@ -154,6 +154,13 @@ impl Lexer {
             self.next_char();
             self.first_run = false;
         }
+        if self.current_char == '/' && self.file_data.chars().nth(self.current_index).unwrap_or('\0') == '/' {
+            while self.current_char != '\n' {
+                self.next_char();
+            }
+            self.next_char();
+            self.skip_whitespace();
+        }
         if self.current_char == '\0' {
             return Token::new(TokenType::Eof, "\0".to_string());
         }
