@@ -21,6 +21,7 @@ impl Context{
         let lexer: Lexer = Lexer::new(self.file_data.clone(), self.diagnostic_printer.clone());
         let mut parser: Parser = Parser::new(lexer, self.diagnostic_printer.clone());
         let ast: Ast = parser.parse_to_ast();
+        ast.print();
         let sema: Sema = Sema::new(ast, self.diagnostic_printer.clone());
         sema.run();
     }

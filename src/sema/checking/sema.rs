@@ -19,20 +19,36 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable {
     symbols: HashMap<String, SymbolKind>,
+    parent: Option<String>
 }
 
 impl SymbolTable {
-    pub fn new() -> Self {
-        Self { symbols: HashMap::new() }
+    pub fn new(parent: Option<String>) -> Self {
+        Self { symbols: HashMap::new(), parent }
     }
-    pub fn get_symbol_by_name(&self, name: String) -> SymbolKind {
-        if !self.contains(name.clone()) {
-            unreachable!();
+    pub fn get_symbol_by_name(&self, semacheck: &SemaChecker, name: &String) -> Option<SymbolKind> {
+        if let Some(symbol) = self.symbols.get(name) {
+            Some(symbol.clone())
+        } else if let Some(ref parent) = self.parent {
+            // Recursively look in the parent scope
+            if let Some(parent_scope) = semacheck.get_scope(parent) {
+                parent_scope.get_symbol_by_name(semacheck, name)
+            } else {
+                None
+            }
+        } else {
+            None
         }
-        self.symbols.get(&name).unwrap().clone()
     }
-    pub fn contains(&self, name: String) -> bool {
-        self.symbols.contains_key(&name)
+    pub fn contains(&self, semacheck: &SemaChecker, name: &String) -> bool {
+        self.symbols.contains_key(name) || 
+        self.parent.as_ref().and_then(|parent| {
+            if let Some(parent_scope) = semacheck.get_scope(parent) {
+                Some(parent_scope.contains(semacheck, name))
+            } else {
+                None
+            }
+        }).unwrap_or(false)
     }
     pub fn append(&mut self, name: String, kind: SymbolKind) {
         self.symbols.insert(name, kind);
@@ -41,10 +57,13 @@ impl SymbolTable {
 
 impl SemaChecker {
     pub fn new(ast: Ast, diag: DiagPrinter) -> Self {
-        let table: SymbolTable = SymbolTable::new();
+        let table: SymbolTable = SymbolTable::new(None);
         let mut hash: HashMap<String, SymbolTable> = HashMap::new();
         hash.insert("__top_scope__".to_string(), table);
         Self { ast, diag, scopes: hash, current_scope: "__top_scope__".to_string(), scope_names: vec![]}
+    }
+    pub fn get_scope(&self, name: &str) -> Option<SymbolTable> {
+        self.scopes.get(name).cloned()
     }
     fn add_table(&mut self, name: String, table: SymbolTable) {
         self.scopes.insert(name, table);
@@ -58,7 +77,11 @@ impl SemaChecker {
         }
     }
     fn contains_name(&self, table: String, name: String) -> bool {
-        self.scopes.get(&table).unwrap().contains(name)
+        if let Some(sym_table) = self.scopes.get(&table) {
+            sym_table.contains(self, &name)
+        } else {
+            false
+        }
     }
     fn collect_func_decl(&mut self, func: FunctionDeclerationStatement) {
         let name: String = func.name().get_data();
@@ -66,10 +89,13 @@ impl SemaChecker {
             self.diag.print_formatted(DiagType::Error, format!("Redefinition of function `{}`", name));
         }
         self.append_top(name.clone(), SymbolKind::Function(vec![], func.return_type()));
-        let func_scope: SymbolTable = SymbolTable::new();
+        let func_scope: SymbolTable = SymbolTable::new(Some(self.current_scope.clone()));
         // TODO: Function arguments
+        self.scope_names.push(self.current_scope.clone());
+        self.current_scope = name.clone();
         self.add_table(name.clone(), func_scope);
         self.collect_symbols(&func.body());
+        self.current_scope = self.scope_names.pop().expect("Expected atleast 1 scope because we pushed atleast 1");
     }
     fn collect_symbols(&mut self, stmt: &StatementType) {
         match stmt {
@@ -78,13 +104,14 @@ impl SemaChecker {
             }
             StatementType::Block(block) => {
                 let block_scope_name = format!("block_{}", block.get_id());
-                let block_scope: SymbolTable = SymbolTable::new();
+                let block_scope: SymbolTable = SymbolTable::new(Some(self.current_scope.clone()));
                 self.add_table(block_scope_name.clone(), block_scope);
+                self.scope_names.push(self.current_scope.clone());
                 self.current_scope = block_scope_name.clone();
                 for stmt in &block.body {
                     self.collect_symbols(stmt);
                 }
-                self.current_scope = "__top_scope__".to_string();
+                self.current_scope = self.scope_names.pop().expect("Expected atleast 1 scope because we pushed atleast 1");
             }
             _ => {}
         }
@@ -146,11 +173,11 @@ impl SemaChecker {
         self.validate_stmt(func.body());
     }
     fn validate_expr(&mut self, expr: ExprType) {
-        match expr {
-            _ => {
+        // match expr {
+            /* _ => */ {
                 self.diag.print_formatted(DiagType::Ice, format!("Handle validating expression `{:?}`", expr));
             }
-        }
+        // }
     }
     fn validate_stmt(&mut self, stmt: StatementType) {
         match stmt {
@@ -176,8 +203,10 @@ impl SemaChecker {
         }
     }
     pub fn check(&mut self) {
+        println!("Sema First pass");
         self.first_pass();
         println!("Symbols: {:#?}", self.scopes);
+        println!("Sema Second pass");
         self.second_pass();
     }
 }
