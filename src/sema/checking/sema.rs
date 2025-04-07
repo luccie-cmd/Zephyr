@@ -14,10 +14,10 @@ pub struct SemaChecker {
 pub enum SymbolKind {
     Variable(TypeSpec),
     Function(Vec<TypeSpec>, TypeSpec), // Arguments, Return type
-    Namespace, // Represents a namespace, but is NOT a type
+    Namespace(*mut SymbolTable), // Recursive symbols
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SymbolTable {
     symbols: HashMap<String, SymbolKind>,
     parent: Option<String>
@@ -63,16 +63,20 @@ impl SemaChecker {
         hash.insert("__top_scope__".to_string(), table);
         Self { ast, diag, scopes: hash, current_scope: "__top_scope__".to_string(), scope_names: vec![]}
     }
+    fn init(&mut self) {
+        let mut std_table: SymbolTable = SymbolTable::new(Some("__top_scope__".to_string()));
+        std_table.append("println".to_string(), SymbolKind::Function(vec![TypeSpec::String], TypeSpec::Int));
+        self.add_table("std".to_string(), std_table.clone());
+        self.append_top("std".to_string(), SymbolKind::Namespace(&mut std_table));
+    }
     pub fn get_scope(&self, name: &str) -> Option<SymbolTable> {
         self.scopes.get(name).cloned()
     }
-    fn get_symbol(&self, name: String) -> SymbolKind {
+    fn get_symbol(&self, name: String) -> Option<SymbolKind> {
         if let Some(sym_table) = self.scopes.get(&name) {
-            sym_table.get_symbol_by_name(self, &name).expect("Expected symbol to be in table")
-        } else {
-            self.diag.print_formatted(DiagType::Ice, "Improper checking of scopes".to_string());
-            exit(1);
+            return sym_table.get_symbol_by_name(self, &name);
         }
+        None
     }
     fn add_table(&mut self, name: String, table: SymbolTable) {
         self.scopes.insert(name, table);
@@ -199,8 +203,11 @@ impl SemaChecker {
                 self.validate_expr(*member.clone());
                 let ExprType::Identifier(ref member_ident) = *member else { panic!("Improper parsing of memberExpr\n"); };
                 let ExprType::Identifier(ref property_ident) = *property else { panic!("Improper parsing of memberExpr\n"); };
-                let symbol: SymbolKind = self.get_symbol(member_ident.get_data());
-                let SymbolKind::Namespace = symbol else { self.diag.print_formatted(DiagType::Error, format!("Symbol `{}` isn't a structure or a namespace", member_ident.get_data())); exit(1); };
+                let symbol: Option<SymbolKind> = self.get_symbol(member_ident.get_data());
+                if let Some(SymbolKind::Namespace(_)) = symbol {} else {
+                    self.diag.print_formatted(DiagType::Error, format!("Symbol `{}` isn't a structure or a namespace '{:?}'", member_ident.get_data(), symbol));
+                    exit(1);
+                }
                 if !self.contains_name(member_ident.get_data(), property_ident.get_data()) {
                     self.diag.print_formatted(DiagType::Error, format!("No property named `{}` found in scope `{}`", property_ident.get_data(), member_ident.get_data()));
                 }
@@ -234,6 +241,9 @@ impl SemaChecker {
         }
     }
     pub fn check(&mut self) {
+        println!("Sema init");
+        self.init();
+        println!("Symbols: {:#?}", self.scopes);
         println!("Sema First pass");
         self.first_pass();
         println!("Symbols: {:#?}", self.scopes);

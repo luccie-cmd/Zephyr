@@ -45,17 +45,7 @@ impl Parser {
             match self.current_token.get_type() {
                 TokenType::ColonColon => {
                     self.consume();
-                    let property = match self.current_token.get_type() {
-                        TokenType::Identifier => {
-                            let ident = ExprType::Identifier(self.current_token.clone());
-                            self.consume();
-                            ident
-                        }
-                        _ => {
-                            self.diag.print_formatted(DiagType::Error, format!("Expected identifier after `::`, got `{}`", self.current_token.get_data()),);
-                            exit(1);
-                        }
-                    };
+                    let property = self.parse_primary_expr();
                     member = ExprType::MemberAccess(Box::new(member), Box::new(property));
                 }
                 TokenType::OpenParen => {
